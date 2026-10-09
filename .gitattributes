@@ -1,0 +1,39 @@
+# 跨 OS 检出一致性：Linux/macOS 上的 CI 必须拿到 LF 的 shell 脚本
+* text=auto
+
+# Gradle wrapper 脚本：Windows 用 .bat，Unix 侧必须是 LF，否则 ./gradlew 报 $'\r': command not found
+gradlew text eol=lf
+*.sh  text eol=lf
+
+# Windows 批处理必须是 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制，禁止换行转换
+*.png binary
+*.webp binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.aar binary
+*.zip binary
+*.apk binary
+*.aab binary
+*.keystore binary
+*.jks binary
+*.ttf binary
+*.otf binary
+*.mp3 binary
+*.ogg binary
+*.wav binary
+*.so binary
+*.dylib binary
+*.dll binary
+*.exe binary
+
+# 差异可读性
+*.kt  text diff=kotlin
+*.kts text diff=kotlin
+*.xml text
+*.md  text
