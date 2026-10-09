@@ -112,6 +112,10 @@ jobs:
             [ -n "$p" ] && paths="$paths,$p"
           done
           echo "JVM_PATHS=$paths" >> "$GITHUB_ENV"
+          # .properties 里反斜杠是转义符：Windows 的 C:\hostedtoolcache\... 会被吃掉
+          # 变成 C:hostedtoolcache...（Gradle 报 "Cannot convert relative path"）。
+          # 统一换成正斜杠，Java 在 Windows 上同样接受。
+          paths=$(printf '%s' "$paths" | tr '\\' '/')
           # 写进 Gradle 用户目录的 gradle.properties：
           # 关掉自动下载（foojay 那条 pinned redirect 现在返回 400），
           # 并把本机已装好的 JDK 全部登记为候选。
