@@ -1,0 +1,170 @@
+name: Android CI
+
+# 多 OS + 多 JDK 版本矩阵编译验证：
+#   Linux(Ubuntu 22.04/24.04) / Windows(Server 2022/2025) / macOS(14 ARM / latest)
+#   JDK 17 / 21 / 25（experimental，只看不拦）
+#
+# 注意 gradle/gradle-daemon-jvm.properties 里 Gradle 9 写死了 toolchainVersion=21，
+# 所以"JDK 17 腿"测的是：只有 JDK 17 的机器上，Gradle 能否经 foojay 自动供给 21 并编译通过；
+# "JDK 25 腿"测的是：客户端跑在 25 上是否兼容 AGP 9 / Gradle 9.3。
+#
+# ML Kit barcode-scanning 17.3.0 是内置模型版本，不需要 Google Play 服务，
+# 因此 CI 上 assembleDebug / assembleRelease 都能直接产出可安装 APK。
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      keep_apk_days:
+        description: "APK 制品保留天数"
+        required: false
+        default: "14"
+        type: choice
+        options: ["7", "14", "30", "90"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.configureondemand=false"
+  APK_RETENTION_DAYS: ${{ inputs.keep_apk_days || '14' }}
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    # experimental 的腿失败不挡合并
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: "Ubuntu 22.04 · JDK 17"
+            os: ubuntu-22.04
+            jdk: 17
+            experimental: false
+          - label: "Ubuntu 24.04 · JDK 17"
+            os: ubuntu-24.04
+            jdk: 17
+            experimental: false
+          - label: "Ubuntu 24.04 · JDK 21"
+            os: ubuntu-24.04
+            jdk: 21
+            experimental: false
+          - label: "Windows Server 2022 · JDK 17"
+            os: windows-2022
+            jdk: 17
+            experimental: false
+          - label: "Windows Server 2025 · JDK 21"
+            os: windows-2025
+            jdk: 21
+            experimental: false
+          - label: "macOS 14 (arm64) · JDK 17"
+            os: macos-14
+            jdk: 17
+            experimental: false
+          - label: "macOS latest · JDK 21"
+            os: macos-latest
+            jdk: 21
+            experimental: false
+          - label: "Ubuntu 24.04 · JDK 25 (实验)"
+            os: ubuntu-24.04
+            jdk: 25
+            experimental: true
+
+    defaults:
+      run:
+        # Windows runner 默认 pwsh，统一走 bash 才能用 ./gradlew 和同一套脚本
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.jdk }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+
+      - name: Locate Android SDK
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-<未设置>}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-<未设置>}"
+          if [ -z "${ANDROID_HOME:-}" ]; then
+            # 少数镜像只导出了 ANDROID_SDK_ROOT
+            if [ -n "${ANDROID_SDK_ROOT:-}" ]; then
+              echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+            else
+              echo "::error::runner 上没有 Android SDK，请检查镜像"
+              exit 1
+            fi
+          fi
+          ls "$ANDROID_HOME" | head -20
+
+      - name: Accept SDK licenses (best effort)
+        continue-on-error: true
+        run: yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+
+      - name: Setup Gradle (wrapper 校验 + 依赖缓存)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          gradle-home-cache-cleanup: true
+
+      - name: Show toolchain versions
+        run: |
+          ./gradlew --version
+          java -version 2>&1
+
+      - name: Unit tests (纯逻辑：自动缩放策略 / 取景框坐标映射)
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Build debug + release APK
+        run: ./gradlew :app:assembleDebug :app:assembleRelease --stacktrace
+
+      - name: Summarize APK sizes
+        run: |
+          {
+            echo "### ${{ matrix.label }} 产物"
+            echo ""
+            echo "| APK | 大小 |"
+            echo "| --- | --- |"
+            found=0
+            for f in app/build/outputs/apk/*/*.apk; do
+              [ -f "$f" ] || continue
+              found=1
+              bytes=$(wc -c < "$f" | tr -d ' ')
+              echo "| \`$f\` | $((bytes / 1024 / 1024)) MB |"
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "::error::没有找到 APK"
+              exit 1
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ matrix.os }}-jdk${{ matrix.jdk }}
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ matrix.os }}-jdk${{ matrix.jdk }}
+          path: app/build/outputs/apk/*/*.apk
+          retention-days: ${{ env.APK_RETENTION_DAYS }}
+          if-no-files-found: error

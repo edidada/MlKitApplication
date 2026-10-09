@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.MlKitApplication" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- 扫码页专用：纯黑窗口底，避免相机首帧前的白闪 -->
+    <style name="Theme.MlKitApplication.Scan" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+    </style>
+</resources>

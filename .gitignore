@@ -1,0 +1,100 @@
+# ---------- Android Studio 原始模板（保留，勿动） ----------
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# ---------- 构建产物（各模块 / 各 OS 的路径分隔符写法） ----------
+build/
+!**/src/**/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
+.kotlin/
+
+# ---------- Gradle ----------
+.gradle/
+*.heapdump
+.gradle-test-report/
+
+# ---------- 本地配置 / 密钥（绝不入库） ----------
+local.properties
+*.jks
+*.keystore
+*.p12
+*.keystore.properties
+keystore.properties
+secrets*.env
+.cxx/
+
+# ---------- IDE / 编辑器 ----------
+.idea/
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+!.icon.png
+*.swp
+*.swo
+*~
+.vscode/
+.history/
+.project
+.classpath
+.settings/
+*.iml
+
+# ---------- 日志 / 性能抓取 ----------
+*.log
+hs_err_pid*
+replay_pid*
+*.hprof
+report-*.html
+captures/
+screenshots/
+*.trace
+simpleperf.data*
+
+# ---------- 测试 / 覆盖率 ----------
+htmlcov/
+.coverage
+coverage.xml
+
+# ---------- macOS ----------
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.fseventsd
+.DocumentRevisions-V100
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# ---------- Windows ----------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ---------- Linux ----------
+.directory
+.Trash-*
+.nfs*
+
+# ---------- 杂项 ----------
+node_modules/
+.tmp/
+dist/
+*.tmp
+*.bak
