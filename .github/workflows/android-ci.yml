@@ -94,6 +94,36 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.jdk }}
 
+      # gradle/gradle-daemon-jvm.properties 钉了 toolchainVersion=21：
+      # 只要矩阵腿不是 21，就必须再装一个 21 给 Gradle 守护进程用，
+      # 否则它会去 foojay 下载（那条 redirect 现在返回 400，直接失败）。
+      - name: Set up JDK 21 for the pinned daemon JVM
+        if: matrix.jdk != 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Resolve JVMs available to Gradle
+        run: |
+          paths="$JAVA_HOME"
+          for v in 17 21 25; do
+            eval "p=\${JAVA_HOME_${v}_X64:-}"
+            [ -n "$p" ] && paths="$paths,$p"
+          done
+          echo "JVM_PATHS=$paths" >> "$GITHUB_ENV"
+          # 写进 Gradle 用户目录的 gradle.properties：
+          # 关掉自动下载（foojay 那条 pinned redirect 现在返回 400），
+          # 并把本机已装好的 JDK 全部登记为候选。
+          GUH="${GRADLE_USER_HOME:-$HOME/.gradle}"
+          mkdir -p "$GUH"
+          {
+            echo "org.gradle.java.installations.auto-download=false"
+            echo "org.gradle.java.installations.paths=$paths"
+          } >> "$GUH/gradle.properties"
+          cat "$GUH/gradle.properties"
+          chmod +x ./gradlew   # 从 Windows 检出的仓库可能丢掉可执行位
+
       - name: Locate Android SDK
         run: |
           echo "ANDROID_HOME=${ANDROID_HOME:-<未设置>}"
@@ -123,6 +153,7 @@ jobs:
         run: |
           ./gradlew --version
           java -version 2>&1
+          echo "候选 JVM: $JVM_PATHS"
 
       - name: Unit tests (纯逻辑：自动缩放策略 / 取景框坐标映射)
         run: ./gradlew :app:testDebugUnitTest --stacktrace
